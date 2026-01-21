@@ -23,7 +23,7 @@
       ]
     },
     {
-      "Name": "VCGSimplifier",
+      "Name": "VCGMeshReduction",
       "Enabled": true
     }
   ],

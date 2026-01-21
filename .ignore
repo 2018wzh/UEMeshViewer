@@ -1,0 +1,16 @@
+/.git
+/.github
+/.vs
+/.vscode
+/Content
+/DerivedDataCache
+/Intermediate
+/Saved
+/Plugins/VCGSimplifier/build
+/Plugins/VCGSimplifier/Docs
+/Plugins/VCGSimplifier/Intermediate
+/Plugins/VCGSimplifier/vcpkg_installed
+/Plugins/VisualStudioTools/azure-pipelines
+/Plugins/VisualStudioTools/Docs
+/Plugins/VisualStudioTools/Intermediate
+/Plugins/VisualStudioTools/Scripts
