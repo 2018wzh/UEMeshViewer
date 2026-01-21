@@ -1,13 +1,36 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
+using System.IO;
 
 public class UEMeshViewer : ModuleRules
 {
+    // 模块路径
+    private string ModulePath
+    {
+        get
+        {
+            return ModuleDirectory;
+        }
+    }
+    // 第三方库路径
+    private string ThirdPartyPath
+    {
+        get
+        {
+            return Path.GetFullPath(Path.Combine(ModulePath, "../../Source/ThirdParty"));
+        }
+    }
 	public UEMeshViewer(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-	
+
+		PublicIncludePaths.AddRange(
+			new string[] {
+				Path.Combine(ThirdPartyPath,"tinygltf"),
+			}
+		);
+
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "ProceduralMeshComponent" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "DesktopPlatform", "Slate", "SlateCore" });
