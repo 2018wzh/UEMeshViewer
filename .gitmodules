@@ -1,3 +1,9 @@
 [submodule "Plugins/VisualStudioTools"]
 	path = Plugins/VisualStudioTools
 	url = https://github.com/microsoft/vc-ue-extensions.git
+[submodule "Plugins/VCGMeshReduction"]
+	path = Plugins/VCGMeshReduction
+	url = https://github.com/hellAngel18/vcg_simplifier.git
+[submodule "Source/ThirdParty/tinygltf"]
+	path = Source/ThirdParty/tinygltf
+	url = https://github.com/syoyo/tinygltf.git
