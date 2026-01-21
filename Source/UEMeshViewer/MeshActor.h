@@ -16,11 +16,15 @@ public:
 	AMeshActor();
 
 	// Load an OBJ file from disk and build a procedural mesh. Returns false on failure.
-	UFUNCTION(BlueprintCallable, Category = "OBJ")
+	UFUNCTION(BlueprintCallable, Category = "Mesh")
 	bool LoadFromObjFile(const FString &FilePath);
 
+	// Load a GLB file from disk and build a procedural mesh. Returns false on failure.
+	UFUNCTION(BlueprintCallable, Category = "Mesh")
+	bool LoadFromGlbFile(const FString &FilePath);
+
 	// Remove any existing mesh section.
-	UFUNCTION(BlueprintCallable, Category = "OBJ")
+	UFUNCTION(BlueprintCallable, Category = "Mesh")
 	void ClearMesh();
 
 	const FBox &GetMeshBounds() const { return MeshBounds; }

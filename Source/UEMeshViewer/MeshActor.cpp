@@ -1,5 +1,10 @@
 #include "MeshActor.h"
 
+#define TINYGLTF_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "tiny_gltf.h"
+
 #include "KismetProceduralMeshLibrary.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -133,6 +138,158 @@ bool AMeshActor::LoadFromObjFile(const FString &FilePath)
 	}
 
 	return BuildMesh(Positions, UVs, Normals, Faces);
+}
+
+bool AMeshActor::LoadFromGlbFile(const FString &FilePath)
+{
+	ClearMesh();
+
+	if (!FPaths::FileExists(FilePath))
+	{
+		UE_LOG(LogUEMeshViewer, Error, TEXT("GLB file not found: %s"), *FilePath);
+		return false;
+	}
+
+	tinygltf::Model Model;
+	tinygltf::TinyGLTF Loader;
+	std::string Err;
+	std::string Warn;
+
+	bool Ret = Loader.LoadBinaryFromFile(&Model, &Err, &Warn, TCHAR_TO_UTF8(*FilePath));
+
+	if (!Warn.empty())
+	{
+		UE_LOG(LogUEMeshViewer, Warning, TEXT("GLB Warning: %s"), UTF8_TO_TCHAR(Warn.c_str()));
+	}
+
+	if (!Err.empty())
+	{
+		UE_LOG(LogUEMeshViewer, Error, TEXT("GLB Error: %s"), UTF8_TO_TCHAR(Err.c_str()));
+	}
+
+	if (!Ret)
+	{
+		return false;
+	}
+
+	int32 SectionIndex = 0;
+	FBox TotalBounds(EForceInit::ForceInit);
+
+	for (const auto &Mesh : Model.meshes)
+	{
+		for (const auto &Primitive : Mesh.primitives)
+		{
+			if (Primitive.mode != TINYGLTF_MODE_TRIANGLES)
+			{
+				continue;
+			}
+
+			TArray<FVector> Vertices;
+			TArray<int32> Triangles;
+			TArray<FVector> Normals;
+			TArray<FVector2D> UVs;
+			TArray<FProcMeshTangent> Tangents;
+
+			// Extract Positions
+			if (Primitive.attributes.count("POSITION") > 0)
+			{
+				const tinygltf::Accessor &Accessor = Model.accessors[Primitive.attributes.at("POSITION")];
+				const tinygltf::BufferView &BufferView = Model.bufferViews[Accessor.bufferView];
+				const tinygltf::Buffer &Buffer = Model.buffers[BufferView.buffer];
+				const float *Data = reinterpret_cast<const float *>(&Buffer.data[BufferView.byteOffset + Accessor.byteOffset]);
+
+				for (size_t i = 0; i < Accessor.count; ++i)
+				{
+					// GLTF: X(right), Y(up), Z(forward) -> UE: X(forward), Y(right), Z(up)
+					// Conversion: UE.X = -GLTF.Z, UE.Y = GLTF.X, UE.Z = GLTF.Y
+					Vertices.Add(FVector(-Data[i * 3 + 2] * 100.0f, Data[i * 3] * 100.0f, Data[i * 3 + 1] * 100.0f));
+				}
+			}
+
+			// Extract Normals
+			if (Primitive.attributes.count("NORMAL") > 0)
+			{
+				const tinygltf::Accessor &Accessor = Model.accessors[Primitive.attributes.at("NORMAL")];
+				const tinygltf::BufferView &BufferView = Model.bufferViews[Accessor.bufferView];
+				const tinygltf::Buffer &Buffer = Model.buffers[BufferView.buffer];
+				const float *Data = reinterpret_cast<const float *>(&Buffer.data[BufferView.byteOffset + Accessor.byteOffset]);
+
+				for (size_t i = 0; i < Accessor.count; ++i)
+				{
+					Normals.Add(FVector(-Data[i * 3 + 2], Data[i * 3], Data[i * 3 + 1]));
+				}
+			}
+
+			// Extract UVs
+			if (Primitive.attributes.count("TEXCOORD_0") > 0)
+			{
+				const tinygltf::Accessor &Accessor = Model.accessors[Primitive.attributes.at("TEXCOORD_0")];
+				const tinygltf::BufferView &BufferView = Model.bufferViews[Accessor.bufferView];
+				const tinygltf::Buffer &Buffer = Model.buffers[BufferView.buffer];
+				const float *Data = reinterpret_cast<const float *>(&Buffer.data[BufferView.byteOffset + Accessor.byteOffset]);
+
+				for (size_t i = 0; i < Accessor.count; ++i)
+				{
+					UVs.Add(FVector2D(Data[i * 2], Data[i * 2 + 1]));
+				}
+			}
+
+			// Extract Indices
+			if (Primitive.indices >= 0)
+			{
+				const tinygltf::Accessor &Accessor = Model.accessors[Primitive.indices];
+				const tinygltf::BufferView &BufferView = Model.bufferViews[Accessor.bufferView];
+				const tinygltf::Buffer &Buffer = Model.buffers[BufferView.buffer];
+
+				if (Accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
+				{
+					const uint32 *Data = reinterpret_cast<const uint32 *>(&Buffer.data[BufferView.byteOffset + Accessor.byteOffset]);
+					for (size_t i = 0; i < Accessor.count; ++i)
+					{
+						Triangles.Add(Data[i]);
+					}
+				}
+				else if (Accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
+				{
+					const uint16 *Data = reinterpret_cast<const uint16 *>(&Buffer.data[BufferView.byteOffset + Accessor.byteOffset]);
+					for (size_t i = 0; i < Accessor.count; ++i)
+					{
+						Triangles.Add(Data[i]);
+					}
+				}
+				else if (Accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
+				{
+					const uint8 *Data = reinterpret_cast<const uint8 *>(&Buffer.data[BufferView.byteOffset + Accessor.byteOffset]);
+					for (size_t i = 0; i < Accessor.count; ++i)
+					{
+						Triangles.Add(Data[i]);
+					}
+				}
+			}
+
+			if (Vertices.Num() > 0)
+			{
+				if (Normals.Num() == 0)
+				{
+					Normals.Init(FVector::ZeroVector, Vertices.Num());
+					UKismetProceduralMeshLibrary::CalculateTangentsForMesh(Vertices, Triangles, UVs, Normals, Tangents);
+				}
+
+				MeshComponent->CreateMeshSection(SectionIndex, Vertices, Triangles, Normals, UVs, {}, Tangents, true);
+				MeshComponent->SetMeshSectionVisible(SectionIndex, true);
+
+				for (const FVector &V : Vertices)
+				{
+					TotalBounds += V;
+				}
+
+				SectionIndex++;
+			}
+		}
+	}
+
+	MeshBounds = TotalBounds;
+	return SectionIndex > 0;
 }
 
 bool AMeshActor::ParseFaceVertex(const FString &Token, FObjIndex &OutIndex, int32 VertexCount, int32 UVCount, int32 NormalCount) const
